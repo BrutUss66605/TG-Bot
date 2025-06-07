@@ -26,6 +26,21 @@ logger = logging.getLogger(__name__)
 
 ASK_EXPR = 0
 
+# CONSTANTS
+WELCOME_TEXT = (
+    "\U0001F44B Привет! Я Telegram-бот ресторана *«La Data»*.\n\n"
+    "Вот что я умею:\n"
+    "• \U0001F522 Калькулятор — быстро считаю выражения (чаевые, проценты, что угодно).\n"
+    "• \U0001F4B3 Оплата — демонстрация тестового платежа.\n\n"
+    "Чтобы начать, нажми кнопку ниже или отправь /help."
+)
+
+MAIN_KB = ReplyKeyboardMarkup(
+    [["🔢 Калькулятор", "💳 Оплата"]],
+    resize_keyboard=True,
+    one_time_keyboard=False,
+)
+
 
 def load_tokens() -> tuple[str, str]:
     """Load required tokens from environment."""
@@ -65,13 +80,12 @@ def safe_eval(expr: str) -> float:
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    me = await context.bot.get_me()
-    keyboard = ReplyKeyboardMarkup(
-        [["🔢 Калькулятор", "💳 Оплата (тест)"]],
-        resize_keyboard=True,
-    )
+    await context.bot.get_me()
+    logger.info("Пользователь %s вызвал /start", update.effective_user.id)
     await update.message.reply_text(
-        f"✅ Бот {me.first_name} подключён", reply_markup=keyboard
+        WELCOME_TEXT,
+        reply_markup=MAIN_KB,
+        parse_mode="Markdown",
     )
 
 
@@ -130,7 +144,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("start", start_cmd))
     application.add_handler(conv)
     application.add_handler(CommandHandler("pay", pay_cmd))
-    application.add_handler(MessageHandler(filters.Regex("^💳 Оплата \(тест\)$"), pay_cmd))
+    application.add_handler(MessageHandler(filters.Regex("^💳 Оплата$"), pay_cmd))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
