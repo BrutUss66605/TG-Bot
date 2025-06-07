@@ -19,12 +19,41 @@ from telegram.ext import (
 )
 
 logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
 ASK_EXPR = 0
+
+# Default bot token if not set in environment
+DEFAULT_BOT_TOKEN = "7611907540:AAH9_pP9YcIt32xfeODBhYODbTernSNnRLA"
+
+# CONSTANTS
+WELCOME_TEXT = (
+    "\U0001F44B Привет! Я бот на базе ИИ, который помогает прогнозировать вероятность победы.\n\n"
+    "Вот что я умею:\n"
+    "• \U0001F522 Калькулятор — быстро считаю выражения.\n"
+    "• \U0001F4B3 Оплата — демонстрация тестового платежа.\n\n"
+    "Чтобы начать, нажми кнопку ниже или отправь /help."
+)
+
+MAIN_KB = ReplyKeyboardMarkup(
+    [["🔢 Калькулятор", "💳 Оплата"]],
+    resize_keyboard=True,
+    one_time_keyboard=False,
+)
+
+
+def load_tokens() -> tuple[str, str]:
+    """Load required tokens from environment."""
+    load_dotenv()
+    bot_token = os.getenv("BOT_TOKEN") or DEFAULT_BOT_TOKEN
+    provider_token = os.getenv("PROVIDER_TOKEN")
+    if not bot_token or not provider_token:
+        logger.error("BOT_TOKEN or PROVIDER_TOKEN is missing")
+        raise SystemExit(1)
+    return bot_token, provider_token
 
 
 def safe_eval(expr: str) -> float:
@@ -54,13 +83,12 @@ def safe_eval(expr: str) -> float:
 
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    me = await context.bot.get_me()
-    keyboard = ReplyKeyboardMarkup(
-        [["🔢 Калькулятор", "💳 Оплата (тест)"]],
-        resize_keyboard=True,
-    )
+    await context.bot.get_me()
+    logger.info("Пользователь %s вызвал /start", update.effective_user.id)
     await update.message.reply_text(
-        f"✅ Бот подключён {me.first_name}", reply_markup=keyboard
+        WELCOME_TEXT,
+        reply_markup=MAIN_KB,
+        parse_mode="Markdown",
     )
 
 
@@ -84,7 +112,7 @@ async def pay_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         title="Пополнение счёта",
         description="Тестовый платёж",
         payload="test_payload",
-        provider_token=os.getenv("PROVIDER_TOKEN"),
+        provider_token=context.bot_data.get("PROVIDER_TOKEN"),
         currency="RUB",
         prices=prices,
     )
@@ -94,20 +122,18 @@ async def precheckout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.pre_checkout_query.answer(ok=True)
 
 
-async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def successful_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Платёж успешно прошёл!")
 
 
 async def main() -> None:
-    load_dotenv()
-    bot_token = os.getenv("BOT_TOKEN")
-    provider_token = os.getenv("PROVIDER_TOKEN")
-
-    if not bot_token or not provider_token:
-        logger.error("BOT_TOKEN or PROVIDER_TOKEN is missing")
-        return
+    bot_token, provider_token = load_tokens()
 
     application = Application.builder().token(bot_token).build()
+    application.bot_data["PROVIDER_TOKEN"] = provider_token
+
+    me = await application.bot.get_me()
+    logger.info("Bot %s connected", me.first_name)
 
     conv = ConversationHandler(
         entry_points=[
@@ -121,9 +147,9 @@ async def main() -> None:
     application.add_handler(CommandHandler("start", start_cmd))
     application.add_handler(conv)
     application.add_handler(CommandHandler("pay", pay_cmd))
-    application.add_handler(MessageHandler(filters.Regex("^💳 Оплата \(тест\)$"), pay_cmd))
+    application.add_handler(MessageHandler(filters.Regex("^💳 Оплата$"), pay_cmd))
     application.add_handler(PreCheckoutQueryHandler(precheckout_handler))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
 
     logger.info("Bot started")
     await application.run_polling()
