@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 ASK_EXPR = 0
 
+# Default bot token if not set in environment
+DEFAULT_BOT_TOKEN = "7611907540:AAH9_pP9YcIt32xfeODBhYODbTernSNnRLA"
+
 # CONSTANTS
 WELCOME_TEXT = (
     "\U0001F44B Привет! Я бот на базе ИИ, который помогает прогнозировать вероятность победы.\n\n"
@@ -45,7 +48,7 @@ MAIN_KB = ReplyKeyboardMarkup(
 def load_tokens() -> tuple[str, str]:
     """Load required tokens from environment."""
     load_dotenv()
-    bot_token = os.getenv("BOT_TOKEN")
+    bot_token = os.getenv("BOT_TOKEN") or DEFAULT_BOT_TOKEN
     provider_token = os.getenv("PROVIDER_TOKEN")
     if not bot_token or not provider_token:
         logger.error("BOT_TOKEN or PROVIDER_TOKEN is missing")
